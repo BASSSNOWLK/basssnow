@@ -252,6 +252,12 @@ h3 {
   gap: 16px;
 }
 
+.service-note {
+  margin-top: 16px;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
 .hero .btn.primary {
   background: var(--color-white);
   color: var(--color-primary);

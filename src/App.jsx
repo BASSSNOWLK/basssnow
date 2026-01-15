@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 const WHATSAPP_URL = 'https://wa.me/message/YUNPXGVFKPZHP1';
-const MAPS_URL = 'https://maps.google.com/?q=YOUR_PLACEHOLDER';
+const MAPS_URL = 'https://maps.app.goo.gl/MTmrvefCWmMTj5j97';
 const PHONE_TEXT = '+94 76 742 6207';
 
 const handleWhatsappClick = () => {
@@ -48,16 +48,16 @@ function App() {
               <h1>HOME REPAIRS MADE EASY</h1>
               <p className="subtext">
                 <span className="subtext-line">
-                  Days of chasing after basss are over.
+                  No more chasing basss la.
                 </span>
                 <span className="subtext-line">
                   Book and manage your home repair entirely on WhatsApp.
                 </span>
                 <span className="subtext-line">
-                  We handle estimations, payments and billing, and repairs.
+                  We handle estimations, billing, and repairs.
                 </span>
                 <span className="subtext-line">
-                  All you have to do is contact us.
+                  You just schedule and pay.
                 </span>
               </p>
               <div className="hero-actions">
@@ -68,6 +68,8 @@ function App() {
                   View Location
                 </button>
               </div>
+              <p className='service-note'>Important: We currently serve Colombo district only.</p>
+
             </div>
             <div className="hero-visual">
               <img className="hero-landing" src="/Landing.svg" alt="BASSS NOW" />
@@ -202,3 +204,4 @@ function App() {
 }
 
 export default App;
+

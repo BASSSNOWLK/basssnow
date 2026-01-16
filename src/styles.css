@@ -84,11 +84,16 @@ body {
   padding: 12px 24px;
   font-weight: 600;
   font-size: 0.95rem;
+  line-height: 1.2;
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
   font-family: var(--font-body);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .btn:hover {
@@ -103,6 +108,7 @@ body {
   background: linear-gradient(135deg, var(--color-primary) 0%, #0055aa 100%);
   color: var(--color-white);
   box-shadow: 0 8px 24px rgba(0, 106, 215, 0.3);
+  white-space: nowrap;
 }
 
 .btn.primary:hover {

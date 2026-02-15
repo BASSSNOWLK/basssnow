@@ -38,47 +38,6 @@ const formatMoney = (value) =>
     maximumFractionDigits: 2,
   })}`;
 
-const buildShareText = (invoice, total, showTotal) => {
-  const lines = [
-    `${invoice.documentType} ${invoice.invoiceNumber || ''}`.trim(),
-    `Date: ${invoice.date || ''}`.trim(),
-    invoice.customerName ? `Customer: ${invoice.customerName}` : '',
-    '',
-    'Items:',
-    ...invoice.items.map((item) => {
-      const amount = Number(item.amount || 0);
-      const itemLines = [
-        `- ${item.description || 'Service'}: ${formatMoney(amount)}`,
-        invoice.documentType === 'Estimate' && item.included
-          ? `  Included: ${item.included}`
-          : '',
-        invoice.documentType === 'Estimate' && item.notIncluded
-          ? `  Not included: ${item.notIncluded}`
-          : '',
-        invoice.documentType === 'Estimate' && item.notes
-          ? `  Notes: ${item.notes}`
-          : '',
-      ];
-      return itemLines.filter(Boolean).join('\n');
-    }),
-    '',
-    showTotal ? `Total: ${formatMoney(total)}` : '',
-    invoice.documentType === 'Invoice' && invoice.included
-      ? `Included: ${invoice.included}`
-      : '',
-    invoice.documentType === 'Invoice' && invoice.notIncluded
-      ? `Not included: ${invoice.notIncluded}`
-      : '',
-    invoice.documentType === 'Invoice' && invoice.notes
-      ? `Notes: ${invoice.notes}`
-      : '',
-    '',
-    'Please save the PDF from the invoice page and attach it here.',
-  ];
-
-  return lines.filter(Boolean).join('\n');
-};
-
 function InvoicePage({ onBack }) {
   const todayLocal = () => {
     const now = new Date();
@@ -87,6 +46,7 @@ function InvoicePage({ onBack }) {
   };
 
   const invoiceSheetRef = useRef(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const formatDisplayDate = (value) => {
     if (!value) {
@@ -165,54 +125,40 @@ function InvoicePage({ onBack }) {
       return;
     }
 
-    const canvas = await html2canvas(sheet, {
-      scale: 2,
-      backgroundColor: '#ffffff',
-      useCORS: true,
-    });
+    setIsGeneratingPdf(true);
+    try {
+      const canvas = await html2canvas(sheet, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        windowWidth: 1280,
+        windowHeight: 1700,
+      });
 
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'pt',
-      format: 'letter',
-    });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'letter',
+      });
 
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const maxWidth = pageWidth;
-    const maxHeight = pageHeight;
-    const imgWidth = canvas.width;
-    const imgHeight = canvas.height;
-    const scale = Math.min(maxWidth / imgWidth, maxHeight / imgHeight, 1);
-    const renderWidth = imgWidth * scale;
-    const renderHeight = imgHeight * scale;
-    const x = (pageWidth - renderWidth) / 2;
-    const y = 0;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const scale = Math.min(pageWidth / imgWidth, pageHeight / imgHeight, 1);
+      const renderWidth = imgWidth * scale;
+      const renderHeight = imgHeight * scale;
+      const x = (pageWidth - renderWidth) / 2;
+      const y = 0;
 
-    pdf.addImage(imgData, 'PNG', x, y, renderWidth, renderHeight);
-    const fileLabel = invoice.documentType.toLowerCase();
-    const fileNumber = invoice.invoiceNumber || '0067';
-    pdf.save(`${fileLabel}-${fileNumber}.pdf`);
-  };
-
-  const handleShare = () => {
-    const shareText = buildShareText(invoice, total, isInvoice);
-    const shareUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
-
-    if (navigator.share) {
-      navigator
-        .share({
-          title: 'Invoice',
-          text: shareText,
-        })
-        .catch(() => {
-          window.open(shareUrl, '_blank', 'noopener,noreferrer');
-        });
-      return;
+      pdf.addImage(imgData, 'PNG', x, y, renderWidth, renderHeight);
+      const fileLabel = invoice.documentType.toLowerCase();
+      const fileNumber = invoice.invoiceNumber || '0067';
+      pdf.save(`${fileLabel}-${fileNumber}.pdf`);
+    } finally {
+      setIsGeneratingPdf(false);
     }
-
-    window.open(shareUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -398,21 +344,19 @@ function InvoicePage({ onBack }) {
             ) : null}
 
             <div className="invoice-actions">
-              <button className="btn primary" onClick={handleDownloadPdf}>
-                Download PDF
-              </button>
-              <button className="btn text-link" onClick={handleShare}>
-                Share on WhatsApp
+              <button
+                className="btn primary"
+                onClick={handleDownloadPdf}
+                disabled={isGeneratingPdf}
+              >
+                {isGeneratingPdf ? 'Generating PDF...' : 'Download PDF'}
               </button>
             </div>
-            <p className="invoice-hint">
-              Download the PDF first, then attach it when WhatsApp opens.
-            </p>
           </section>
 
           <section className="invoice-preview">
             <div
-              className="invoice-sheet"
+              className={`invoice-sheet ${isGeneratingPdf ? 'pdf-export' : ''}`}
               ref={invoiceSheetRef}
             >
               <div className="invoice-preview-header">

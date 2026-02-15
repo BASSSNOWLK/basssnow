@@ -104,6 +104,11 @@ body {
   transform: translateY(0);
 }
 
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .btn.primary {
   background: linear-gradient(135deg, var(--color-primary) 0%, #0055aa 100%);
   color: var(--color-white);
@@ -707,6 +712,23 @@ details p {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.invoice-sheet.pdf-export {
+  width: 8.5in;
+  min-height: 11in;
+}
+
+.invoice-sheet.pdf-export .invoice-title-block {
+  text-align: right;
+  width: auto;
+}
+
+.invoice-sheet.pdf-export .invoice-footer {
+  flex-direction: row;
+  align-items: center;
 }
 
 .invoice-preview-header {
@@ -873,18 +895,27 @@ details p {
 }
 
 .invoice-notes h4 {
-  font-size: 0.95rem;
+  font-size: 1rem;
+  font-weight: 700;
   margin-bottom: 6px;
 }
 
 .invoice-notes p {
   color: #4b5563;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.invoice-item-notes strong {
+  font-size: inherit;
 }
 
 .invoice-terms {
   margin-top: 18px;
+  font-size: 1rem;
   font-weight: 700;
   color: #ff3131;
+  line-height: 1.35;
 }
 
 .invoice-footer {
@@ -940,6 +971,16 @@ details p {
   .invoice-footer {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .invoice-sheet.pdf-export .invoice-footer {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .invoice-sheet.pdf-export .invoice-title-block {
+    text-align: right;
+    width: auto;
   }
 
   .invoice-main {

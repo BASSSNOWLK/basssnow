@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const WHATSAPP_URL = 'https://wa.me/message/YUNPXGVFKPZHP1';
 const MAPS_URL = 'https://maps.app.goo.gl/MTmrvefCWmMTj5j97';
 const PHONE_TEXT = '+94 76 742 6207';
+const INVOICE_ROUTE = '/pathum/invoice';
 
 const handleWhatsappClick = () => {
   console.log('cta_whatsapp_click');
@@ -14,16 +17,635 @@ const handleLocationClick = () => {
   window.open(MAPS_URL, '_blank', 'noopener,noreferrer');
 };
 
+const normalizePath = (path) => {
+  const trimmed = path.replace(/\/+$/, '');
+  return trimmed.length ? trimmed : '/';
+};
+
+const createLineItem = () => ({
+  id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  description: '',
+  amount: 0,
+  included: '',
+  notIncluded: '',
+  notes: '',
+});
+
+const formatMoney = (value) =>
+  `LKR ${Number(value || 0).toLocaleString('en-LK', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+const buildShareText = (invoice, total, showTotal) => {
+  const lines = [
+    `${invoice.documentType} ${invoice.invoiceNumber || ''}`.trim(),
+    `Date: ${invoice.date || ''}`.trim(),
+    invoice.customerName ? `Customer: ${invoice.customerName}` : '',
+    '',
+    'Items:',
+    ...invoice.items.map((item) => {
+      const amount = Number(item.amount || 0);
+      const itemLines = [
+        `- ${item.description || 'Service'}: ${formatMoney(amount)}`,
+        invoice.documentType === 'Estimate' && item.included
+          ? `  Included: ${item.included}`
+          : '',
+        invoice.documentType === 'Estimate' && item.notIncluded
+          ? `  Not included: ${item.notIncluded}`
+          : '',
+        invoice.documentType === 'Estimate' && item.notes
+          ? `  Notes: ${item.notes}`
+          : '',
+      ];
+      return itemLines.filter(Boolean).join('\n');
+    }),
+    '',
+    showTotal ? `Total: ${formatMoney(total)}` : '',
+    invoice.documentType === 'Invoice' && invoice.included
+      ? `Included: ${invoice.included}`
+      : '',
+    invoice.documentType === 'Invoice' && invoice.notIncluded
+      ? `Not included: ${invoice.notIncluded}`
+      : '',
+    invoice.documentType === 'Invoice' && invoice.notes
+      ? `Notes: ${invoice.notes}`
+      : '',
+    '',
+    'Please save the PDF from the invoice page and attach it here.',
+  ];
+
+  return lines.filter(Boolean).join('\n');
+};
+
+function InvoicePage({ onBack }) {
+  const todayLocal = () => {
+    const now = new Date();
+    const offsetMs = now.getTimezoneOffset() * 60 * 1000;
+    return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
+  };
+
+  const invoiceSheetRef = useRef(null);
+
+  const formatDisplayDate = (value) => {
+    if (!value) {
+      return '--';
+    }
+    const parsed = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return new Intl.DateTimeFormat('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(parsed);
+  };
+
+  const [invoice, setInvoice] = useState(() => ({
+    invoiceNumber: '0067',
+    date: todayLocal(),
+    customerName: '',
+    documentType: 'Invoice',
+    included: '',
+    notIncluded: '',
+    notes: '',
+    items: [createLineItem()],
+  }));
+
+  const updateField = (field) => (event) => {
+    const value = event.target.value;
+    setInvoice((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const updateItemField = (id, field) => (event) => {
+    const value = event.target.value;
+    setInvoice((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === id ? { ...item, [field]: value } : item
+      ),
+    }));
+  };
+
+  const addItem = () => {
+    setInvoice((prev) => ({
+      ...prev,
+      items: [...prev.items, createLineItem()],
+    }));
+  };
+
+  const removeItem = (id) => {
+    setInvoice((prev) => {
+      if (prev.items.length === 1) {
+        return prev;
+      }
+      return {
+        ...prev,
+        items: prev.items.filter((item) => item.id !== id),
+      };
+    });
+  };
+
+  const total = invoice.items.reduce((sum, item) => {
+    const amount = Number(item.amount || 0);
+    return sum + amount;
+  }, 0);
+  const isInvoice = invoice.documentType === 'Invoice';
+  const isEstimate = invoice.documentType === 'Estimate';
+
+  const handleDownloadPdf = async () => {
+    const sheet = invoiceSheetRef.current;
+    if (!sheet) {
+      return;
+    }
+
+    const canvas = await html2canvas(sheet, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'pt',
+      format: 'letter',
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const maxWidth = pageWidth;
+    const maxHeight = pageHeight;
+    const imgWidth = canvas.width;
+    const imgHeight = canvas.height;
+    const scale = Math.min(maxWidth / imgWidth, maxHeight / imgHeight, 1);
+    const renderWidth = imgWidth * scale;
+    const renderHeight = imgHeight * scale;
+    const x = (pageWidth - renderWidth) / 2;
+    const y = 0;
+
+    pdf.addImage(imgData, 'PNG', x, y, renderWidth, renderHeight);
+    const fileLabel = invoice.documentType.toLowerCase();
+    const fileNumber = invoice.invoiceNumber || '0067';
+    pdf.save(`${fileLabel}-${fileNumber}.pdf`);
+  };
+
+  const handleShare = () => {
+    const shareText = buildShareText(invoice, total, isInvoice);
+    const shareUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+
+    if (navigator.share) {
+      navigator
+        .share({
+          title: 'Invoice',
+          text: shareText,
+        })
+        .catch(() => {
+          window.open(shareUrl, '_blank', 'noopener,noreferrer');
+        });
+      return;
+    }
+
+    window.open(shareUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  return (
+    <div className="invoice-page">
+      <header className="invoice-header no-print">
+        <div className="container invoice-header-content">
+          <button className="btn text-link" onClick={onBack}>
+            Back to Home
+          </button>
+          <div className="invoice-header-title">Invoice Builder</div>
+        </div>
+      </header>
+
+      <main className="invoice-main">
+        <div className="container invoice-grid">
+          <section className="invoice-form no-print">
+            <h2>Invoice details</h2>
+            <div className="form-grid">
+              <div className="form-field">
+                <label htmlFor="invoice-number">Invoice/Estimate number</label>
+                <input
+                  id="invoice-number"
+                  type="text"
+                  value={invoice.invoiceNumber}
+                  onChange={updateField('invoiceNumber')}
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="invoice-date">Date</label>
+                <input
+                  id="invoice-date"
+                  type="date"
+                  value={invoice.date}
+                  onChange={updateField('date')}
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="customer-name">Customer name</label>
+                <input
+                  id="customer-name"
+                  type="text"
+                  value={invoice.customerName}
+                  onChange={updateField('customerName')}
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="document-type">Document type</label>
+                <select
+                  id="document-type"
+                  value={invoice.documentType}
+                  onChange={updateField('documentType')}
+                >
+                  <option value="Invoice">Invoice</option>
+                  <option value="Estimate">Estimate</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="line-items">
+              <div className="line-items-header">
+                <h3>Line items</h3>
+                <button className="btn text-link" onClick={addItem}>
+                  Add item
+                </button>
+              </div>
+              {invoice.items.map((item, index) => (
+                <div className="line-item" key={item.id}>
+                  <div className="form-field">
+                    <label htmlFor={`item-desc-${item.id}`}>
+                      Description {index + 1}
+                    </label>
+                    <input
+                      id={`item-desc-${item.id}`}
+                      type="text"
+                      value={item.description}
+                      onChange={updateItemField(item.id, 'description')}
+                      placeholder="Service or product"
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor={`item-amount-${item.id}`}>Amount</label>
+                    <input
+                      id={`item-amount-${item.id}`}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.amount}
+                      onChange={updateItemField(item.id, 'amount')}
+                    />
+                  </div>
+                  {index > 0 ? (
+                    <button
+                      className="icon-btn"
+                      type="button"
+                      onClick={() => removeItem(item.id)}
+                      aria-label={`Remove item ${index + 1}`}
+                      title="Remove item"
+                    >
+                      x
+                    </button>
+                  ) : (
+                    <span className="icon-spacer" aria-hidden="true" />
+                  )}
+                  {!isInvoice ? (
+                    <>
+                      <div className="form-field form-field-full">
+                        <label htmlFor={`item-included-${item.id}`}>
+                          What is included
+                        </label>
+                        <textarea
+                          id={`item-included-${item.id}`}
+                          rows="2"
+                          value={item.included}
+                          onChange={updateItemField(item.id, 'included')}
+                          placeholder="Included services or materials"
+                        />
+                      </div>
+                      <div className="form-field form-field-full">
+                        <label htmlFor={`item-not-included-${item.id}`}>
+                          What is not included
+                        </label>
+                        <textarea
+                          id={`item-not-included-${item.id}`}
+                          rows="2"
+                          value={item.notIncluded}
+                          onChange={updateItemField(item.id, 'notIncluded')}
+                          placeholder="Anything excluded from the scope"
+                        />
+                      </div>
+                      <div className="form-field form-field-full">
+                        <label htmlFor={`item-notes-${item.id}`}>Notes</label>
+                        <textarea
+                          id={`item-notes-${item.id}`}
+                          rows="2"
+                          value={item.notes}
+                          onChange={updateItemField(item.id, 'notes')}
+                          placeholder="Additional notes"
+                        />
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+
+            {isInvoice ? (
+              <>
+                <div className="form-field">
+                  <label htmlFor="included">
+                    What is included (applies to all line items)
+                  </label>
+                  <textarea
+                    id="included"
+                    rows="3"
+                    value={invoice.included}
+                    onChange={updateField('included')}
+                    placeholder="Included services or materials"
+                  />
+                </div>
+                <div className="form-field">
+                  <label htmlFor="not-included">
+                    What is not included (applies to all line items)
+                  </label>
+                  <textarea
+                    id="not-included"
+                    rows="3"
+                    value={invoice.notIncluded}
+                    onChange={updateField('notIncluded')}
+                    placeholder="Anything excluded from the scope"
+                  />
+                </div>
+                <div className="form-field">
+                  <label htmlFor="notes">Notes (applies to all line items)</label>
+                  <textarea
+                    id="notes"
+                    rows="3"
+                    value={invoice.notes}
+                    onChange={updateField('notes')}
+                    placeholder="Additional notes"
+                  />
+                </div>
+              </>
+            ) : null}
+
+            <div className="invoice-actions">
+              <button className="btn primary" onClick={handleDownloadPdf}>
+                Download PDF
+              </button>
+              <button className="btn text-link" onClick={handleShare}>
+                Share on WhatsApp
+              </button>
+            </div>
+            <p className="invoice-hint">
+              Download the PDF first, then attach it when WhatsApp opens.
+            </p>
+          </section>
+
+          <section className="invoice-preview">
+            <div
+              className="invoice-sheet"
+              ref={invoiceSheetRef}
+            >
+              <div className="invoice-preview-header">
+                <div className="invoice-branding">
+                  <img
+                    className="invoice-logo-mark"
+                    src="/LOGO0.png"
+                    alt="BASSS NOW"
+                  />
+                </div>
+                <div className="invoice-title-block">
+                  <p className="invoice-title">{invoice.documentType}</p>
+                  <div className="invoice-meta">
+                    <p className="invoice-date">
+                      {formatDisplayDate(invoice.date)}
+                    </p>
+                    <p className="invoice-number">
+                      {invoice.documentType} No.{' '}
+                      <strong>{invoice.invoiceNumber || '0067'}</strong>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="invoice-customer">
+                <div>
+                  <h4>Bill to</h4>
+                  <p>{invoice.customerName || 'Customer name'}</p>
+                </div>
+              </div>
+
+              <table className="invoice-table">
+                <thead>
+                  <tr>
+                    <th>Description</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoice.items.map((item) => {
+                    const amount = Number(item.amount || 0);
+                    return (
+                      <tr key={item.id}>
+                        <td>{item.description || 'Service'}</td>
+                        <td>{formatMoney(amount)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {isInvoice ? (
+                <div className="invoice-summary">
+                  <div className="invoice-summary-total">
+                    <p>Total</p>
+                    <p>{formatMoney(total)}</p>
+                  </div>
+                </div>
+              ) : null}
+
+              {isInvoice ? (
+                invoice.included || invoice.notIncluded || invoice.notes ? (
+                  <div className="invoice-notes">
+                    {invoice.included ? (
+                      <div className="invoice-item-notes">
+                        <h4>What is included</h4>
+                        <p>{invoice.included}</p>
+                      </div>
+                    ) : null}
+                    {invoice.notIncluded ? (
+                      <div className="invoice-item-notes">
+                        <h4>What is not included</h4>
+                        <p>{invoice.notIncluded}</p>
+                      </div>
+                    ) : null}
+                    {invoice.notes ? (
+                      <div className="invoice-item-notes">
+                        <h4>Notes</h4>
+                        <p>{invoice.notes}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null
+              ) : invoice.items.some(
+                  (item) => item.included || item.notIncluded || item.notes
+                ) ? (
+                <div className="invoice-notes">
+                  {invoice.items.map((item, itemIndex) => {
+                    if (!item.included && !item.notIncluded && !item.notes) {
+                      return null;
+                    }
+                    return (
+                      <div className="invoice-item-notes" key={item.id}>
+                        <h4>
+                          {item.description
+                            ? item.description
+                            : `Line item ${itemIndex + 1}`}
+                        </h4>
+                        {item.included ? (
+                          <p>
+                            <strong>Included:</strong> {item.included}
+                          </p>
+                        ) : null}
+                        {item.notIncluded ? (
+                          <p>
+                            <strong>Not included:</strong> {item.notIncluded}
+                          </p>
+                        ) : null}
+                        {item.notes ? (
+                          <p>
+                            <strong>Notes:</strong> {item.notes}
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <p className="invoice-terms">
+                By making payment to BASSS NOW, you confirm that you have read
+                and accepted the Terms & Conditions. Please review them before{' '}
+                {isEstimate ? 'accepting the quote' : 'making payment'}.
+              </p>
+
+              <div className="invoice-footer">
+                <a className="invoice-footer-link" href="tel:+94767426207">
+                  {PHONE_TEXT}
+                </a>
+                <a
+                  className="invoice-footer-link"
+                  href="https://basss.now"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  www.basss.now
+                </a>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  );
+}
+
 function App() {
   const [scrolled, setScrolled] = useState(false);
+  const [path, setPath] = useState(() =>
+    normalizePath(window.location.pathname)
+  );
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    return window.localStorage.getItem('invoice_unlocked') === 'true';
+  });
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  const isInvoice = path === INVOICE_ROUTE;
 
   useEffect(() => {
+    if (isInvoice) {
+      return undefined;
+    }
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
+    handleScroll();
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, [isInvoice]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPath(normalizePath(window.location.pathname));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  const navigateTo = (nextPath) => {
+    const normalized = normalizePath(nextPath);
+    window.history.pushState({}, '', normalized);
+    setPath(normalized);
+    window.scrollTo(0, 0);
+  };
+
+  if (isInvoice) {
+    const handleUnlock = (event) => {
+      event.preventDefault();
+      const correctPassword = 'santhushpathumbasss26';
+      if (passwordInput === correctPassword) {
+        window.localStorage.setItem('invoice_unlocked', 'true');
+        setIsUnlocked(true);
+        setPasswordError('');
+        return;
+      }
+      setPasswordError('Incorrect password.');
+    };
+
+    if (!isUnlocked) {
+      return (
+        <div className="invoice-page">
+          <main className="invoice-main">
+            <div className="container invoice-grid">
+              <section className="invoice-form">
+                <h2>Enter password</h2>
+                <form onSubmit={handleUnlock} className="form-grid">
+                  <div className="form-field">
+                    <label htmlFor="invoice-password">Password</label>
+                    <input
+                      id="invoice-password"
+                      type="password"
+                      value={passwordInput}
+                      onChange={(event) => {
+                        setPasswordInput(event.target.value);
+                        setPasswordError('');
+                      }}
+                    />
+                  </div>
+                  {passwordError ? (
+                    <p className="invoice-hint">{passwordError}</p>
+                  ) : null}
+                  <button className="btn primary" type="submit">
+                    Unlock
+                  </button>
+                </form>
+              </section>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    return <InvoicePage onBack={() => navigateTo('/')} />;
+  }
 
   return (
     <div className="page">
@@ -204,4 +826,3 @@ function App() {
 }
 
 export default App;
-

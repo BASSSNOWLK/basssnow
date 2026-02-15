@@ -27,7 +27,8 @@ const createLineItem = () => ({
   description: '',
   amount: 0,
   included: '',
-  notIncluded: '',
+  notIncluded:
+    'Removal or disposal of existing items, furniture, appliances, or external waste is not included. BASSS NOW will clean debris created during the repair work only and will not handle disposal.',
   notes: '',
 });
 
@@ -108,7 +109,8 @@ function InvoicePage({ onBack }) {
     customerName: '',
     documentType: 'Invoice',
     included: '',
-    notIncluded: '',
+    notIncluded:
+      'Removal or disposal of existing items, furniture, appliances, or external waste is not included. BASSS NOW will clean debris created during the repair work only and will not handle disposal.',
     notes: '',
     items: [createLineItem()],
   }));

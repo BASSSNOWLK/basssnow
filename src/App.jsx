@@ -386,6 +386,13 @@ function InvoicePage({ onBack }) {
                   <h4>Bill to</h4>
                   <p>{invoice.customerName || 'Customer name'}</p>
                 </div>
+                <div className="payment-info">
+                  <h4>Payment Information</h4>
+                  <p>Account Name: NPM Perera</p>
+                  <p>Account Number: 73007358</p>
+                  <p>Bank: Bank Of Ceylon</p>
+                  <p>Branch: Maharagama</p>
+                </div>
               </div>
 
               <table className="invoice-table">

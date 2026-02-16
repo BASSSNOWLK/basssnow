@@ -814,6 +814,14 @@ details p {
   margin-bottom: 8px;
 }
 
+.payment-info {
+  text-align: right;
+}
+
+.payment-info p {
+  margin: 2px 0;
+}
+
 .invoice-total-card {
   background: #eff6ff;
   border-radius: 14px;
@@ -964,6 +972,11 @@ details p {
   }
 
   .invoice-title-block {
+    text-align: left;
+    width: 100%;
+  }
+
+  .payment-info {
     text-align: left;
     width: 100%;
   }
